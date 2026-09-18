@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fork Battle</title>
+<style>
+  *{box-sizing:border-box} body{margin:0;background:#10131c;color:#fff;font-family:Arial,sans-serif;overflow:hidden}
+  #wrap{position:relative;width:100vw;height:100vh;display:grid;place-items:center}
+  canvas{background:#1b2230;max-width:100vw;max-height:100vh;box-shadow:0 0 40px #0008}
+  #ui{position:absolute;inset:0;pointer-events:none}
+  .top{display:flex;justify-content:space-between;padding:18px 22px;font-weight:800;text-shadow:0 2px 4px #000}
+  #coins{color:#ffd54a}
+  #menu,#shop,#gameover,#levelselect{pointer-events:auto;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:min(520px,90vw);padding:26px;border-radius:22px;background:#151b28ee;border:2px solid #ffffff22;
+    text-align:center;box-shadow:0 20px 80px #000b}
+  h1{font-size:52px;margin:0 0 4px} h2{font-size:34px;margin:0 0 16px}
+  .forklogo{font-size:62px;filter:drop-shadow(0 4px 8px #000)}
+  button{border:0;border-radius:14px;padding:13px 18px;margin:7px;font-size:17px;font-weight:800;cursor:pointer;
+    background:#ffcc3d;color:#171717;box-shadow:0 5px 0 #b88600}
+  button:hover{transform:translateY(-1px)} button.secondary{background:#76d7ff;box-shadow:0 5px 0 #2587a9}
+  button.dark{background:#ddd;box-shadow:0 5px 0 #888}
+  .small{font-size:13px;color:#bfc7d5;line-height:1.45}
+  .hidden{display:none!important}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+  .card{background:#ffffff0d;border:1px solid #ffffff18;border-radius:15px;padding:12px}
+  .card strong{display:block;margin-bottom:5px}
+  #message{position:absolute;top:70px;left:50%;transform:translateX(-50%);font-size:24px;font-weight:900;text-shadow:0 2px 5px #000}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="game" width="1100" height="650"></canvas>
+<div id="ui">
+  <div class="top"><span id="level">LEVEL 1</span><span id="coins">🪙 0</span></div>
+  <div id="message"></div>
+
+  <div id="menu">
+    <div class="forklogo">🍴⚔️🍴</div>
+    <h1>FORK BATTLE</h1>
+    <p>Fight. Win coins. Upgrade your fork.</p>
+    <button onclick="startAI()">▶ BATTLE AI</button>
+    <button class="secondary" onclick="openLevelSelect()">🗺️ LEVEL SELECT</button>
+    <button class="secondary" onclick="startTwoPlayer()">👥 2 PLAYER</button>
+    <button class="dark" onclick="openShop()">🛒 FORK SHOP</button>
+    <p class="small"><b>Player 1:</b> A/D move · W jump · F attack · G dash<br>
+    <b>Player 2:</b> ←/→ move · ↑ jump · K attack · L dash<br><br>
+    “2 Player” is local multiplayer on one keyboard. True internet multiplayer needs a server.</p>
+  </div>
+
+
+  <div id="levelselect" class="hidden">
+    <h2>🗺️ World 1</h2>
+    <p>Replay any level you have unlocked.</p>
+    <div id="levelButtons" class="cards"></div>
+    <button class="dark" onclick="closeLevelSelect()">← Back</button>
+  </div>
+
+  <div id="shop" class="hidden">
+    <h2>🛒 Fork Shop</h2>
+    <div class="cards">
+      <div class="card"><strong>⚔️ Damage Upgrade</strong><span id="damageText"></span><br><button onclick="buyDamage()">Buy</button></div>
+      <div class="card"><strong>❤️ Health Upgrade</strong><span id="healthText"></span><br><button onclick="buyHealth()">Buy</button></div>
+      <div class="card"><strong>🔥 Fire Fork Skin</strong>100 coins<br><button onclick="buySkin('fire',100)">Buy/Equip</button></div>
+      <div class="card"><strong>💎 Diamond Fork Skin</strong>250 coins<br><button onclick="buySkin('diamond',250)">Buy/Equip</button></div>
+    </div>
+    <button class="dark" onclick="closeShop()">← Back</button>
+  </div>
+
+  <div id="gameover" class="hidden">
+    <h2 id="result">YOU WIN!</h2>
+    <p id="reward"></p>
+    <button onclick="nextBattle()">Next Battle</button>
+    <button class="dark" onclick="backMenu()">Main Menu</button>
+  </div>
+</div>
+</div>
+
+
+<script>
+const c=document.getElementById('game'),x=c.getContext('2d');
+const keys={}; addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase()))e.preventDefault()});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+
+let save=JSON.parse(localStorage.getItem('forkBattleSaveV2')||'null')||{coins:0,level:1,damage:0,health:0,skins:["classic"],skin:"classic"};
+let mode="menu",p1,p2,particles=[],shake=0,last=0,finished=false,platforms=[],hazards=[],fallers=[],tick=0;
+const gravity=.75, baseGround=555;
+const LEVELS=[
+ {name:"Training Table",bg:["#18233b","#442c50"],enemy:1},
+ {name:"Crate Kitchen",bg:["#23354a","#60402d"],enemy:1.08,boxes:true},
+ {name:"Sky Shelves",bg:["#18354d","#39666b"],enemy:1.15,platforms:true},
+ {name:"Frozen Fridge",bg:["#18314b","#6fc8e8"],enemy:1.22,ice:true},
+ {name:"Hot Stove",bg:["#4b1e1e","#9b4b22"],enemy:1.3,lava:true},
+ {name:"Falling Food",bg:["#3a294d","#5b3c25"],enemy:1.38,fall:true},
+ {name:"Lava Leap",bg:["#391719","#c24420"],enemy:1.48,lava:true,platforms:true},
+ {name:"Ice Over Fire",bg:["#173448","#9bdcf2"],enemy:1.58,lava:true,platforms:true,ice:true},
+ {name:"Chaos Kitchen",bg:["#291d3b","#8a3528"],enemy:1.72,lava:true,platforms:true,ice:true,fall:true},
+ {name:"KING FORK",bg:["#190d25","#7b1d1d"],enemy:2.05,boss:true,lava:true,platforms:true,ice:true,fall:true}
+];
+
+function currentLevel(){return LEVELS[Math.min(save.level,10)-1]}
+function persist(){localStorage.setItem('forkBattleSaveV2',JSON.stringify(save));updateUI()}
+function updateUI(){
+ document.getElementById('coins').textContent="🪙 "+save.coins;
+ document.getElementById('level').textContent=(save.level<=10?"WORLD 1 · LEVEL "+save.level:"WORLD 1 COMPLETE!");
+ document.getElementById('damageText').textContent=`Level ${save.damage} · ${50+save.damage*50} coins`;
+ document.getElementById('healthText').textContent=`Level ${save.health} · ${60+save.health*60} coins`;
+}
+function fighter(px,facing,ai=false,p2controls=false){
+ let L=currentLevel(), mult=ai?L.enemy:1, boss=ai&&L.boss;
+ let hp=ai?(100*mult+(boss?100:0)):(100+save.health*15);
+ return {x:px,y:baseGround-95,vx:0,vy:0,w:55,h:95,facing,ai,p2controls,hp,maxHp:hp,
+ damage:ai?(13*mult+(boss?3:0)):(13+save.damage*3),attack:0,cool:0,dash:0,onGround:true,flash:0,skin:ai?(boss?"king":"enemy"):save.skin};
+}
+function buildArena(){
+ platforms=[];hazards=[];fallers=[];let L=currentLevel();
+ if(L.boxes){platforms.push({x:300,y:455,w:150,h:35,ice:false},{x:650,y:410,w:160,h:35,ice:false})}
+ if(L.platforms){
+   platforms.push({x:90,y:465,w:260,h:22,ice:L.ice},{x:420,y:405,w:260,h:22,ice:L.ice},{x:750,y:465,w:260,h:22,ice:L.ice});
+ }
+ if(L.lava){
+   hazards.push({x:0,y:baseGround,w:c.width,h:c.height-baseGround,type:"lava"});
+   // Safe spawn islands so neither fighter starts by falling straight into lava.
+   platforms.push({x:70,y:baseGround-18,w:250,h:22,ice:false});
+   platforms.push({x:780,y:baseGround-18,w:250,h:22,ice:false});
+ }
+}
+function startAI(){
+ if(save.level>10){save.level=10;persist()}
+ hidePanels();mode="ai";finished=false;buildArena();p1=fighter(170,1);p2=fighter(860,-1,true);
+ if(currentLevel().lava){p1.y=baseGround-18-p1.h;p2.y=baseGround-18-p2.h;p1.onGround=p2.onGround=true;}
+ message((currentLevel().boss?"👑 BOSS: ":"")+currentLevel().name,1600)
+}
+function startTwoPlayer(){hidePanels();mode="2p";finished=false;buildArena();p1=fighter(170,1);p2=fighter(860,-1,false,true);p2.skin="blue";
+ if(currentLevel().lava){p1.y=baseGround-18-p1.h;p2.y=baseGround-18-p2.h;p1.onGround=p2.onGround=true;}message("LOCAL 2 PLAYER",1000)}
+function hidePanels(){["menu","shop","gameover","levelselect"].forEach(id=>document.getElementById(id).classList.add("hidden"))}
+function backMenu(){mode="menu";finished=false;hidePanels();document.getElementById("menu").classList.remove("hidden")}
+
+function openLevelSelect(){
+ document.getElementById("menu").classList.add("hidden");
+ document.getElementById("levelselect").classList.remove("hidden");
+ let box=document.getElementById("levelButtons"); box.innerHTML="";
+ for(let i=1;i<=10;i++){
+   let b=document.createElement("button");
+   b.textContent=(i===10?"👑 LEVEL 10":`LEVEL ${i}`);
+   b.style.pointerEvents="auto";
+   b.onclick=function(){ selectLevel(i); };
+   box.appendChild(b);
+ }
+}
+function closeLevelSelect(){
+ document.getElementById("levelselect").classList.add("hidden");
+ document.getElementById("menu").classList.remove("hidden");
+}
+function selectLevel(n){
+ save.level=n; persist();
+ document.getElementById("levelselect").classList.add("hidden");
+ startAI();
+}
+function openShop(){document.getElementById("menu").classList.add("hidden");document.getElementById("shop").classList.remove("hidden");updateUI()}
+function closeShop(){document.getElementById("shop").classList.add("hidden");document.getElementById("menu").classList.remove("hidden")}
+function buyDamage(){let cost=50+save.damage*50;if(save.coins>=cost){save.coins-=cost;save.damage++;persist()}else message("Need more coins!",900)}
+function buyHealth(){let cost=60+save.health*60;if(save.coins>=cost){save.coins-=cost;save.health++;persist()}else message("Need more coins!",900)}
+function buySkin(s,cost){if(save.skins.includes(s)){save.skin=s;persist();return}if(save.coins>=cost){save.coins-=cost;save.skins.push(s);save.skin=s;persist()}else message("Need more coins!",900)}
+function message(t,ms){let m=document.getElementById("message");m.textContent=t;setTimeout(()=>{if(m.textContent===t)m.textContent=""},ms)}
+function nextBattle(){document.getElementById("gameover").classList.add("hidden");if(mode==="doneAI")startAI();else startTwoPlayer()}
+function control(f,e){
+ if(f.ai){aiControl(f,e);return}
+ let L=f.p2controls?"arrowleft":"a",R=f.p2controls?"arrowright":"d",J=f.p2controls?"arrowup":"w",A=f.p2controls?"k":"f",D=f.p2controls?"l":"g";
+ if(keys[L]){f.vx-=.8;f.facing=-1}if(keys[R]){f.vx+=.8;f.facing=1}
+ if(keys[J]&&f.onGround){f.vy=-13;f.onGround=false}
+ if(keys[A]&&f.cool<=0){f.attack=12;f.cool=28}
+ if(keys[D]&&f.dash<=0){f.vx+=f.facing*12;f.dash=75}
+}
+function aiControl(f,e){
+ let dist=e.x-f.x, dir=Math.sign(dist)||f.facing, L=currentLevel();
+ f.facing=dir; let boost=L.boss?1.25:1;
+ let cx=f.x+f.w/2, feet=f.y+f.h;
+
+ let here=platforms.find(p=>cx>=p.x && cx<=p.x+p.w && Math.abs(feet-p.y)<38);
+ let ecx=e.x+e.w/2;
+ let playerPlatform=platforms.find(p=>ecx>=p.x && ecx<=p.x+p.w && Math.abs((e.y+e.h)-p.y)<60);
+
+ if(L.lava && here){
+   let sameHeight=Math.abs((e.y+e.h/2)-(f.y+f.h/2))<75;
+   let nearEnough=Math.abs(dist)<115;
+
+   // Fight normally if both forks are safely on the same island/platform.
+   if(playerPlatform===here){
+      if(nearEnough && sameHeight && f.cool<=0){f.attack=12;f.cool=L.boss?20:28}
+      if(!f.patrolDir)f.patrolDir=1;
+      if(cx<here.x+75)f.patrolDir=1;
+      if(cx>here.x+here.w-75)f.patrolDir=-1;
+      if(!nearEnough)f.vx+=f.patrolDir*.24;
+      else f.vx*=.55;
+      return;
+   }
+
+   // SAFETY FIRST: do not jump over lava unless the destination platform overlaps
+   // the AI's tested jump range with a generous landing zone.
+   let candidates=platforms.filter(p=>{
+      if(p===here)return false;
+      let gapRight=p.x-(here.x+here.w);
+      let gapLeft=here.x-(p.x+p.w);
+      let gap=Math.max(0,gapRight,gapLeft);
+      let vertical=Math.abs(p.y-here.y);
+      return gap<=115 && vertical<=70;
+   });
+
+   candidates.sort((a,b)=>{
+      let ac=a.x+a.w/2,bc=b.x+b.w/2;
+      return Math.abs(ac-ecx)-Math.abs(bc-ecx);
+   });
+
+   let target=candidates[0];
+   if(target && f.onGround){
+      let tx=target.x+target.w/2;
+      let jumpDir=Math.sign(tx-cx)||dir;
+
+      // Walk to a controlled launch point first.
+      let launchX=jumpDir>0 ? here.x+here.w-90 : here.x+90;
+      if(Math.abs(cx-launchX)>12){
+         f.vx+=Math.sign(launchX-cx)*.30;
+         return;
+      }
+
+      // Short, predictable platform jump.
+      f.vy=-11.7;
+      f.vx=jumpDir*4.35;
+      f.onGround=false;
+      return;
+   }
+
+   // If the next platform isn't definitely safe, DON'T jump.
+   // Stay toward the middle of the current platform instead.
+   let middle=here.x+here.w/2;
+   if(Math.abs(cx-middle)>18)f.vx+=Math.sign(middle-cx)*.28;
+   else f.vx*=.45;
+   return;
+ }
+
+ // Normal arena AI
+ if(Math.abs(dist)>95)f.vx+=dir*.52*boost;
+ let sameHeight=Math.abs((e.y+e.h/2)-(f.y+f.h/2))<85;
+ if(Math.abs(dist)<120&&sameHeight&&f.cool<=0&&Math.random()<.10*boost){f.attack=12;f.cool=L.boss?20:30}
+ if(Math.abs(dist)>220&&f.dash<=0&&Math.random()<.02*boost){f.vx+=f.facing*11;f.dash=75}
+ if(f.onGround&&Math.random()<.012*boost){f.vy=-12;f.onGround=false}
+}
+function overlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function platformLand(f,oldBottom){
+ for(let p of platforms){
+  if(f.vy>=0 && oldBottom<=p.y+8 && f.y+f.h>=p.y && f.x+f.w>p.x && f.x<p.x+p.w){
+   f.y=p.y-f.h;f.vy=0;f.onGround=true;
+   if(p.ice)f.vx*=1.025;
+   return true;
+  }
+ }return false;
+}
+function updateF(f,e){
+ control(f,e);f.cool--;f.dash--;f.flash--;if(f.attack>0)f.attack--;
+ let oldBottom=f.y+f.h;f.vy+=gravity;f.x+=f.vx;f.y+=f.vy;
+ let icy=currentLevel().ice && platforms.some(p=>p.ice&&Math.abs((f.y+f.h)-p.y)<4&&f.x+f.w>p.x&&f.x<p.x+p.w);
+ f.vx*=icy?.965:.84;f.onGround=false;
+ let landed=platformLand(f,oldBottom);
+ if(!currentLevel().lava && !landed && f.y+f.h>=baseGround){f.y=baseGround-f.h;f.vy=0;f.onGround=true}
+ if(currentLevel().lava && f.y+f.h>=baseGround+12){f.hp=0;message("🔥 INTO THE LAVA!",600)}
+ f.x=Math.max(10,Math.min(c.width-65,f.x));
+ if(f.attack>=6&&f.attack<=10){let reach={x:f.facing>0?f.x+35:f.x-65,y:f.y+18,w:85,h:55};if(overlap(reach,e)&&!f.didHit){hit(e,f.damage,f.facing);f.didHit=true}}else if(f.attack<6)f.didHit=false;
+ for(let q of fallers)if(overlap(f,q)&&!q.hit){f.hp-=10;q.hit=true;f.flash=8;shake=7}
+}
+function hit(f,d,dir){f.hp-=d;f.vx+=dir*8;f.vy=-4;f.flash=8;shake=8;for(let i=0;i<12;i++)particles.push({x:f.x+25,y:f.y+35,vx:(Math.random()-.5)*8,vy:(Math.random()-.5)*8,t:25})}
+function endGame(){
+ if(finished||p1.hp>0&&p2.hp>0)return;finished=true;let win=p1.hp>0,r=document.getElementById("result"),rw=document.getElementById("reward");
+ if(mode==="ai"){
+  if(win){
+   let beaten=save.level,reward=30+beaten*12+(beaten===10?200:0);save.coins+=reward;
+   r.textContent=beaten===10?"👑 KING FORK DEFEATED!":"🏆 LEVEL CLEARED!";
+   rw.textContent=beaten===10?`+${reward} coins! WORLD 1 COMPLETE!`:`+${reward} coins! Next: Level ${beaten+1}`;
+   if(beaten<10)save.level++;else save.level=10;mode="doneAI";persist()
+  }else{r.textContent="💥 FORKED!";rw.textContent="Try again — learn the map and upgrade your fork.";mode="doneAI"}
+ }else{r.textContent=win?"🏆 PLAYER 1 WINS!":"🏆 PLAYER 2 WINS!";rw.textContent="Rematch?"}
+ setTimeout(()=>document.getElementById("gameover").classList.remove("hidden"),650)
+}
+function spawnFaller(){
+ if(!currentLevel().fall)return;
+ if(tick%95===0)fallers.push({x:60+Math.random()*950,y:-40,w:30,h:30,vy:3+Math.random()*2,hit:false})
+}
+function drawFork(f){
+ x.save();x.translate(f.x+f.w/2,f.y+f.h/2);x.scale(f.facing,1);if(f.flash>0)x.globalAlpha=.45;
+ let col=f.skin==="fire"?"#ff6b32":f.skin==="diamond"?"#71e6ff":f.skin==="blue"?"#76a9ff":f.skin==="king"?"#ffd43b":f.skin==="enemy"?"#ff7070":"#dce2ea";
+ x.strokeStyle=col;x.fillStyle=col;x.lineWidth=f.skin==="king"?13:9;x.lineCap="round";x.beginPath();x.moveTo(0,35);x.lineTo(0,-12);x.stroke();
+ x.lineWidth=5;[-15,-5,5,15].forEach(xx=>{x.beginPath();x.moveTo(xx,-12);x.lineTo(xx,-42);x.stroke()});x.beginPath();x.moveTo(-15,-13);x.lineTo(15,-13);x.stroke();
+ x.fillStyle="#111";x.beginPath();x.arc(-7,-2,3,0,7);x.arc(7,-2,3,0,7);x.fill();
+ if(f.skin==="king"){x.fillStyle="#ffd43b";x.beginPath();x.moveTo(-24,-48);x.lineTo(-16,-67);x.lineTo(-5,-53);x.lineTo(6,-69);x.lineTo(17,-53);x.lineTo(25,-67);x.lineTo(25,-46);x.closePath();x.fill()}
+ if(f.attack>0){x.rotate(-.65);x.strokeStyle="#fff";x.lineWidth=6;x.beginPath();x.moveTo(18,12);x.lineTo(72,-25);x.stroke()}
+ x.restore();
+}
+function bar(f,left,label){let w=390,h=24,y=35,xx=left?35:c.width-425;x.fillStyle="#0008";x.fillRect(xx,y,w,h);x.fillStyle=f.hp/f.maxHp>.35?"#4de070":"#ff5353";x.fillRect(xx,y,w*Math.max(0,f.hp/f.maxHp),h);x.strokeStyle="#fff";x.lineWidth=2;x.strokeRect(xx,y,w,h);x.fillStyle="#fff";x.font="bold 15px Arial";x.textAlign=left?"left":"right";x.fillText(label,left?xx:xx+w,y-8)}
+function draw(){
+ x.save();if(shake>0){x.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.8}
+ let L=currentLevel(),g=x.createLinearGradient(0,0,0,c.height);g.addColorStop(0,L.bg[0]);g.addColorStop(1,L.bg[1]);x.fillStyle=g;x.fillRect(0,0,c.width,c.height);
+ x.fillStyle="#ffffff0b";for(let i=0;i<10;i++){x.beginPath();x.arc(80+i*120,180+(i%2)*35,38,0,7);x.fill()}
+ if(!L.lava){x.fillStyle="#303746";x.fillRect(0,baseGround,c.width,c.height-baseGround);x.fillStyle="#596274";x.fillRect(0,baseGround,c.width,8)}
+ else{let grd=x.createLinearGradient(0,baseGround,0,c.height);grd.addColorStop(0,"#ffdd35");grd.addColorStop(.25,"#ff6a18");grd.addColorStop(1,"#a50000");x.fillStyle=grd;x.fillRect(0,baseGround,c.width,c.height-baseGround);x.fillStyle="#fff4";for(let i=0;i<15;i++)x.fillRect((i*83+tick*2)%c.width,baseGround+15+(i%3)*20,35,5)}
+ for(let p of platforms){x.fillStyle=p.ice?"#a9ecff":"#68717f";x.fillRect(p.x,p.y,p.w,p.h);x.fillStyle=p.ice?"#e7fbff":"#8b94a2";x.fillRect(p.x,p.y,p.w,5)}
+ for(let q of fallers){x.fillStyle="#ffca45";x.beginPath();x.arc(q.x+15,q.y+15,15,0,7);x.fill()}
+ if(mode!=="menu"){drawFork(p1);drawFork(p2);bar(p1,true,"PLAYER 1");bar(p2,false,L.boss?"👑 KING FORK":mode==="ai"?"AI FORK":"PLAYER 2");x.fillStyle="#fff";x.textAlign="center";x.font="bold 20px Arial";x.fillText(L.name,c.width/2,42)}
+ particles.forEach(q=>{x.fillStyle="#ffd54a";x.fillRect(q.x,q.y,5,5)});x.restore()
+}
+function loop(t){
+ last=t;tick++;if(mode!=="menu"&&!finished&&p1&&p2){spawnFaller();updateF(p1,p2);updateF(p2,p1);endGame()}
+ fallers.forEach(q=>{q.y+=q.vy});fallers=fallers.filter(q=>q.y<c.height+50);
+ particles.forEach(q=>{q.x+=q.vx;q.y+=q.vy;q.vy+=.25;q.t--});particles=particles.filter(q=>q.t>0);
+ draw();requestAnimationFrame(loop)
+}
+updateUI();requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>
