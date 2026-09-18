@@ -1,2 +1,2 @@
-# fork-battle
-Novak's First App - Fork battle 
+# fork_battle
+- Fork battle fun fork fighting game
