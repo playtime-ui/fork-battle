@@ -25,6 +25,42 @@
   .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
   .card{background:#ffffff0d;border:1px solid #ffffff18;border-radius:15px;padding:12px}
   .card strong{display:block;margin-bottom:5px}
+
+/* Bigger, wider shop so all items and the Exit button stay reachable. */
+#shop{
+  width:min(920px,94vw);
+  max-height:92vh;
+  overflow-y:scroll;
+  scrollbar-gutter:stable;
+  padding:20px 24px;
+}
+#shop::-webkit-scrollbar{width:14px}
+#shop::-webkit-scrollbar-track{background:#0d111a;border-radius:10px}
+#shop::-webkit-scrollbar-thumb{background:#ffcc3d;border-radius:10px;border:3px solid #0d111a}
+#shop::-webkit-scrollbar-thumb:hover{background:#ffe078}
+#shop{scrollbar-width:auto;scrollbar-color:#ffcc3d #0d111a}
+#shop h2{font-size:30px;margin-bottom:10px}
+#shop .cards{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:9px;
+  margin:8px 0 12px;
+}
+#shop .card{
+  padding:9px 8px;
+  font-size:14px;
+  line-height:1.25;
+}
+#shop .card strong{font-size:16px;margin-bottom:3px}
+#shop .card button{
+  padding:9px 12px;
+  margin:6px 3px 3px;
+  font-size:14px;
+}
+#shop>button{padding:10px 18px;margin:6px;font-size:15px}
+@media(max-width:700px){
+  #shop{width:95vw;padding:16px;max-height:94vh}
+  #shop .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
   #message{position:absolute;top:70px;left:50%;transform:translateX(-50%);font-size:24px;font-weight:900;text-shadow:0 2px 5px #000}
 </style>
 </head>
@@ -32,7 +68,7 @@
 <div id="wrap">
 <canvas id="game" width="1100" height="650"></canvas>
 <div id="ui">
-  <div class="top"><span id="level">LEVEL 1</span><span id="coins">🪙 0</span></div>
+  <div class="top"><span id="level">LEVEL 1</span><span id="grenadeHud">💣 0/2</span><span id="coins">🪙 0</span></div>
   <div id="message"></div>
 
   <div id="menu">
@@ -43,7 +79,7 @@
     <button class="secondary" onclick="openLevelSelect()">🗺️ LEVEL SELECT</button>
     <button class="secondary" onclick="startTwoPlayer()">👥 2 PLAYER</button>
     <button class="dark" onclick="openShop()">🛒 FORK SHOP</button>
-    <p class="small"><b>Player 1:</b> A/D move · W jump · F attack · G dash<br>
+    <p class="small"><b>Player 1:</b> A/D move · W jump · F attack · G dash · H grenade (Grenadier)<br>
     <b>Player 2:</b> ←/→ move · ↑ jump · K attack · L dash<br><br>
     “2 Player” is local multiplayer on one keyboard. True internet multiplayer needs a server.</p>
   </div>
@@ -63,6 +99,19 @@
       <div class="card"><strong>❤️ Health Upgrade</strong><span id="healthText"></span><br><button onclick="buyHealth()">Buy</button></div>
       <div class="card"><strong>🔥 Fire Fork Skin</strong>100 coins<br><button onclick="buySkin('fire',100)">Buy/Equip</button></div>
       <div class="card"><strong>💎 Diamond Fork Skin</strong>250 coins<br><button onclick="buySkin('diamond',250)">Buy/Equip</button></div>
+      <div class="card"><strong>💣 Grenadier Fork</strong>3,000 coins<br><span id="grenadeText">Throws grenades with <b>H</b>.</span><br><button onclick="buyGrenadier()">Buy/Equip</button></div>
+      <div class="card"><strong>⚡ Speed Boots</strong>400 coins<br><button onclick="buyExtra('speed',400)">Buy</button></div>
+      <div class="card"><strong>🛡️ Fork Shield</strong>650 coins<br><button onclick="buyExtra('shield',650)">Buy</button></div>
+      <div class="card"><strong>🧲 Coin Magnet</strong>800 coins<br><button onclick="buyExtra('magnet',800)">Buy</button></div>
+      <div class="card"><strong>❄️ Ice Fork Skin</strong>500 coins<br><button onclick="buySkin('icefork',500)">Buy/Equip</button></div>
+      <div class="card"><strong>☢️ Toxic Fork Skin</strong>750 coins<br><button onclick="buySkin('toxic',750)">Buy/Equip</button></div>
+      <div class="card"><strong>👑 Golden Fork Skin</strong>1,500 coins<br><button onclick="buySkin('gold',1500)">Buy/Equip</button></div>
+      <div class="card"><strong>🌈 Rainbow Fork Skin</strong>1,800 coins<br><button onclick="buySkin('rainbow',1800)">Buy/Equip</button></div>
+      <div class="card"><strong>🌑 Shadow Fork Skin</strong>1,200 coins<br><button onclick="buySkin('shadow',1200)">Buy/Equip</button></div>
+      <div class="card"><strong>❤️ Extra Life</strong>1,000 coins<br>Start battles with more health.<br><button onclick="buyExtra('extraLife',1000)">Buy</button></div>
+      <div class="card"><strong>💥 Power Fork</strong>1,250 coins<br>Extra attack damage.<br><button onclick="buyExtra('powerFork',1250)">Buy</button></div>
+      <div class="card"><strong>🚀 Super Dash</strong>900 coins<br>Stronger dash movement.<br><button onclick="buyExtra('superDash',900)">Buy</button></div>
+      <div class="card"><strong>🍀 Lucky Fork</strong>1,100 coins<br>Earn bonus coins from wins.<br><button onclick="buyExtra('lucky',1100)">Buy</button></div>
     </div>
     <button class="dark" onclick="closeShop()">← Back</button>
   </div>
@@ -82,8 +131,20 @@ const c=document.getElementById('game'),x=c.getContext('2d');
 const keys={}; addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase()))e.preventDefault()});
 addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 
-let save=JSON.parse(localStorage.getItem('forkBattleSaveV2')||'null')||{coins:0,level:1,damage:0,health:0,skins:["classic"],skin:"classic"};
-let mode="menu",p1,p2,particles=[],shake=0,last=0,finished=false,platforms=[],hazards=[],fallers=[],tick=0;
+// GITHUB RELEASE — reset old test progress ONCE, then preserve real progress.
+const RELEASE_RESET_KEY="forkBattleReleaseResetGrenadeV1";
+let save;
+if(localStorage.getItem(RELEASE_RESET_KEY)!=="done"){
+  save={coins:0,level:1,unlockedLevel:1,damage:0,health:0,skins:["classic"],skin:"classic",grenadier:false,extras:[]};
+  localStorage.setItem('forkBattleSaveV2',JSON.stringify(save));
+  localStorage.setItem(RELEASE_RESET_KEY,"done");
+}else{
+  save=JSON.parse(localStorage.getItem('forkBattleSaveV2')||'null')||
+       {coins:0,level:1,unlockedLevel:1,damage:0,health:0,skins:["classic"],skin:"classic",grenadier:false,extras:[]};
+}
+save.extras=save.extras||[];
+save.unlockedLevel=Math.max(1,Math.min(20,save.unlockedLevel||save.level||1));
+let mode="menu",p1,p2,particles=[],shake=0,last=0,finished=false,platforms=[],hazards=[],fallers=[],grenades=[],tick=0,lasers=[],boostPads=[],teleporters=[];
 const gravity=.75, baseGround=555;
 const LEVELS=[
  {name:"Training Table",bg:["#18233b","#442c50"],enemy:1},
@@ -96,43 +157,216 @@ const LEVELS=[
  {name:"Ice Over Fire",bg:["#173448","#9bdcf2"],enemy:1.58,lava:true,platforms:true,ice:true},
  {name:"Chaos Kitchen",bg:["#291d3b","#8a3528"],enemy:1.72,lava:true,platforms:true,ice:true,fall:true},
  {name:"KING FORK",bg:["#190d25","#7b1d1d"],enemy:2.05,boss:true,lava:true,platforms:true,ice:true,fall:true}
+ ,
+ {name:"Neon Counter",bg:["#161335","#5d2387"],enemy:2.10,platforms:true,world2:true},
+ {name:"Toaster Trouble",bg:["#342015","#c96822"],enemy:2.18,platforms:true,fall:true,world2:true},
+ {name:"Freezer Factory",bg:["#102b46","#52b8dc"],enemy:2.25,platforms:true,ice:true,world2:true},
+ {name:"Acid Sink",bg:["#17331c","#4e8c32"],enemy:2.34,lava:true,platforms:true,world2:true},
+ {name:"Knife Storm",bg:["#2a2034","#75506d"],enemy:2.42,platforms:true,fall:true,world2:true},
+ {name:"Turbo Table",bg:["#18263b","#216b85"],enemy:2.50,platforms:true,fall:true,world2:true},
+ {name:"Acid Ice",bg:["#143743","#76d9d0"],enemy:2.60,lava:true,platforms:true,ice:true,world2:true},
+ {name:"Food Apocalypse",bg:["#44251e","#a84b28"],enemy:2.70,platforms:true,fall:true,world2:true},
+ {name:"Fork Fortress",bg:["#25202f","#6d567d"],enemy:2.82,lava:true,platforms:true,fall:true,world2:true},
+ {name:"MEGA KING FORK",bg:["#160d21","#b11f42"],enemy:3.0,boss:true,lava:true,platforms:true,fall:true,world2:true}
 ];
 
-function currentLevel(){return LEVELS[Math.min(save.level,10)-1]}
+function currentLevel(){return LEVELS[Math.min(save.level,20)-1]}
 function persist(){localStorage.setItem('forkBattleSaveV2',JSON.stringify(save));updateUI()}
 function updateUI(){
  document.getElementById('coins').textContent="🪙 "+save.coins;
- document.getElementById('level').textContent=(save.level<=10?"WORLD 1 · LEVEL "+save.level:"WORLD 1 COMPLETE!");
+ document.getElementById('level').textContent=(save.level<=10?"WORLD 1 · LEVEL "+save.level:save.level<=20?"WORLD 2 · LEVEL "+(save.level-10):"WORLD 2 COMPLETE!");
  document.getElementById('damageText').textContent=`Level ${save.damage} · ${50+save.damage*50} coins`;
  document.getElementById('healthText').textContent=`Level ${save.health} · ${60+save.health*60} coins`;
 }
 function fighter(px,facing,ai=false,p2controls=false){
  let L=currentLevel(), mult=ai?L.enemy:1, boss=ai&&L.boss;
  let hp=ai?(100*mult+(boss?100:0)):(100+save.health*15);
+ if(!ai&&save.extras.includes("shield")){hp+=30}
+ if(!ai&&save.extras.includes("extraLife")){hp+=25}
+ let playerDamage=13+save.damage*3+((!ai&&save.extras.includes("powerFork"))?4:0);
  return {x:px,y:baseGround-95,vx:0,vy:0,w:55,h:95,facing,ai,p2controls,hp,maxHp:hp,
- damage:ai?(13*mult+(boss?3:0)):(13+save.damage*3),attack:0,cool:0,dash:0,onGround:true,flash:0,skin:ai?(boss?"king":"enemy"):save.skin};
+ damage:ai?(13*mult+(boss?3:0)):playerDamage,attack:0,cool:0,dash:0,onGround:true,flash:0,skin:ai?(boss?"king":"enemy"):save.skin,
+ speedBonus:(!ai&&save.extras.includes("speed"))?1.18:1,coyote:0,jumpBuffer:0,grenadeCool:0,grenadeHeld:false,grenadesLeft:(!ai&&!p2controls&&save.grenadier)?2:0};
 }
 function buildArena(){
- platforms=[];hazards=[];fallers=[];let L=currentLevel();
- if(L.boxes){platforms.push({x:300,y:455,w:150,h:35,ice:false},{x:650,y:410,w:160,h:35,ice:false})}
- if(L.platforms){
-   platforms.push({x:90,y:465,w:260,h:22,ice:L.ice},{x:420,y:405,w:260,h:22,ice:L.ice},{x:750,y:465,w:260,h:22,ice:L.ice});
- }
- if(L.lava){
+ // Always clear the previous level FIRST. The redesigned arenas return early,
+ // so this MUST happen before any level-specific arena code.
+ platforms=[];hazards=[];fallers=[];grenades=[];lasers=[];boostPads=[];teleporters=[];
+ let L=currentLevel();
+ // DISTINCT REDESIGNED LEVELS — each one uses a different mechanic/layout.
+
+
+ // W1 L5 — HOT STOVE: connected stepping route + jump pads.
+ if(save.level===5){
    hazards.push({x:0,y:baseGround,w:c.width,h:c.height-baseGround,type:"lava"});
-   // Safe spawn islands so neither fighter starts by falling straight into lava.
-   platforms.push({x:70,y:baseGround-18,w:250,h:22,ice:false});
-   platforms.push({x:780,y:baseGround-18,w:250,h:22,ice:false});
+   platforms.push(
+     {x:55,y:baseGround-18,w:210,h:22,ice:false},
+     {x:300,y:455,w:150,h:22,ice:false},
+     {x:475,y:390,w:150,h:22,ice:false},
+     {x:650,y:455,w:150,h:22,ice:false},
+     {x:835,y:baseGround-18,w:210,h:22,ice:false}
+   );
+   boostPads.push(
+     {x:205,y:baseGround-32,w:58,h:14,spring:true},
+     {x:837,y:baseGround-32,w:58,h:14,spring:true}
+   );
+   return;
+ }
+
+ // W1 L9 — BOOST CIRCUIT
+ // A continuous safe racetrack-style floor. Boost pads make the fight move fast,
+ // but there are NO holes for the AI to run into.
+ if(save.level===9){
+   platforms.push(
+     {x:35,y:505,w:1030,h:24,ice:false},
+     {x:210,y:425,w:150,h:20,ice:false},
+     {x:475,y:365,w:150,h:20,ice:false},
+     {x:740,y:425,w:150,h:20,ice:false}
+   );
+   boostPads.push(
+     {x:170,y:485,w:90,h:14,dir:1},
+     {x:840,y:485,w:90,h:14,dir:-1}
+   );
+   return;
+ }
+
+ // W1 L10 — KING FORK THRONE ROOM
+ // Totally different from L9: one large throne room, raised throne in the middle,
+ // and side stairs. No boost race and NO lava route.
+ if(save.level===10){
+   platforms.push(
+     {x:35,y:515,w:1030,h:24,ice:false},
+     {x:155,y:455,w:150,h:20,ice:false},
+     {x:320,y:405,w:145,h:20,ice:false},
+     {x:455,y:335,w:190,h:24,ice:false},
+     {x:635,y:405,w:145,h:20,ice:false},
+     {x:795,y:455,w:150,h:20,ice:false}
+   );
+   return;
+ }
+
+ // W2 L5 — KNIFE STORM SKYBRIDGE: zig-zag shelves; no lava.
+ if(save.level===15){
+   platforms.push(
+     {x:35,y:505,w:245,h:24,ice:false},
+     {x:300,y:435,w:180,h:20,ice:false},
+     {x:500,y:365,w:180,h:20,ice:false},
+     {x:700,y:435,w:180,h:20,ice:false},
+     {x:900,y:505,w:165,h:24,ice:false}
+   );
+   // Moving/falling food remains the danger here instead of lava.
+   return;
+ }
+
+ // W2 L7 — ACID ICE: keep the one you liked.
+ if(save.level===17){
+   platforms.push(
+     {x:55,y:500,w:220,h:24,ice:false},
+     {x:275,y:500,w:550,h:24,ice:true},
+     {x:825,y:500,w:220,h:24,ice:false},
+     {x:465,y:405,w:170,h:20,ice:true}
+   );
+   return;
+ }
+
+ // W2 L9 — TELEPORT FORTRESS: separated towers connected by teleporters.
+ if(save.level===19){
+   platforms.push(
+     {x:35,y:510,w:250,h:24,ice:false},
+     {x:425,y:390,w:250,h:24,ice:false},
+     {x:815,y:510,w:250,h:24,ice:false}
+   );
+   teleporters.push(
+     {x:235,y:470,w:35,h:40,toX:455,toY:345},
+     {x:830,y:470,w:35,h:40,toX:615,toY:345}
+   );
+   return;
+ }
+
+ // W2 L10 — MEGA KING TURBO FINALE: boost-pad runway + high boss dais.
+ if(save.level===20){
+   platforms.push(
+     {x:25,y:515,w:330,h:24,ice:false},
+     {x:385,y:430,w:330,h:24,ice:false},
+     {x:745,y:515,w:330,h:24,ice:false},
+     {x:475,y:325,w:150,h:20,ice:false}
+   );
+   boostPads.push(
+     {x:250,y:495,w:85,h:14,spring:true},
+     {x:765,y:495,w:85,h:14,spring:true}
+   );
+   return;
+ }
+
+ // W1 L9/L10: explicit staircase so the AI cannot get trapped on platform 2.
+ // Right spawn -> right step -> middle -> left step -> player side.
+ if(save.level===9||save.level===10){
+   platforms.push(
+     {x:70,y:baseGround-18,w:250,h:22,ice:false},
+     {x:250,y:455,w:210,h:22,ice:true},
+     {x:445,y:395,w:210,h:22,ice:true},
+     {x:640,y:455,w:210,h:22,ice:true},
+     {x:780,y:baseGround-18,w:250,h:22,ice:false}
+   );
+   hazards.push({x:0,y:baseGround,w:c.width,h:c.height-baseGround,type:"lava"});
+   return;
+ }
+ // WORLD 2 LEVEL 1: NEON COUNTER — BOOST PADS + LASER GATE
+ if(save.level===11){
+   platforms.push({x:45,y:500,w:180,h:22,ice:false},{x:270,y:440,w:145,h:22,ice:false},{x:455,y:365,w:190,h:22,ice:false},{x:690,y:430,w:145,h:22,ice:false},{x:875,y:500,w:180,h:22,ice:false});
+   boostPads.push({x:305,y:426,w:72,h:14,dir:1},{x:720,y:416,w:72,h:14,dir:-1});
+   lasers.push({x:542,y:365,w:8,h:175,phase:0}); return;
+ }
+ // WORLD 2 LEVEL 2: TOASTER TROUBLE — SPRING PADS + FALLING FOOD
+ if(save.level===12){
+   platforms.push({x:55,y:485,w:210,h:22,ice:false},{x:315,y:335,w:145,h:22,ice:false},{x:485,y:455,w:130,h:22,ice:false},{x:640,y:300,w:145,h:22,ice:false},{x:835,y:485,w:210,h:22,ice:false});
+   boostPads.push({x:125,y:471,w:70,h:14,spring:true},{x:900,y:471,w:70,h:14,spring:true}); return;
+ }
+ // WORLD 2 LEVEL 3: FREEZER FACTORY — ICE + TELEPORTERS
+ if(save.level===13){
+   platforms.push({x:35,y:505,w:235,h:22,ice:true},{x:300,y:420,w:120,h:22,ice:true},{x:465,y:325,w:175,h:22,ice:true},{x:690,y:400,w:120,h:22,ice:true},{x:845,y:490,w:225,h:22,ice:true});
+   teleporters.push({x:82,y:455,w:48,h:50,toX:925,toY:425},{x:930,y:440,w:48,h:50,toX:80,toY:440}); return;
+ }
+
+ if(L.boxes){platforms.push({x:300,y:455,w:150,h:35,ice:false},{x:650,y:410,w:160,h:35,ice:false})}
+ if(L.platforms){platforms.push({x:90,y:465,w:260,h:22,ice:L.ice},{x:420,y:405,w:260,h:22,ice:L.ice},{x:750,y:465,w:260,h:22,ice:L.ice});}
+ if(save.level>=11){
+   // WORLD 2 gets denser arenas.
+   platforms.push({x:365,y:505,w:135,h:20,ice:L.ice},{x:600,y:335,w:145,h:20,ice:L.ice});
+ }
+ if(L.lava){hazards.push({x:0,y:baseGround,w:c.width,h:c.height-baseGround,type:"lava"});platforms.push({x:70,y:baseGround-18,w:250,h:22,ice:false});platforms.push({x:780,y:baseGround-18,w:250,h:22,ice:false});}
+}
+function movePlatforms(){
+ if(save.level!==5)return;
+ for(let p of platforms){
+  if(!p.moveX&&!p.moveY)continue;
+  let ox=p.x,oy=p.y,wave=Math.sin(tick*p.speed+p.phase);
+  if(p.moveX)p.x=p.baseX+wave*p.moveX;
+  if(p.moveY)p.y=p.baseY+wave*p.moveY;
+  for(let f of [p1,p2])if(f){
+   let feet=f.y+f.h;
+   if(f.x+f.w>ox&&f.x<ox+p.w&&Math.abs(feet-oy)<8&&f.vy>=0){f.x+=p.x-ox;f.y+=p.y-oy;}
+  }
  }
 }
 function startAI(){
- if(save.level>10){save.level=10;persist()}
+ if(save.level>20){save.level=20;persist()}
  hidePanels();mode="ai";finished=false;buildArena();p1=fighter(170,1);p2=fighter(860,-1,true);
- if(currentLevel().lava){p1.y=baseGround-18-p1.h;p2.y=baseGround-18-p2.h;p1.onGround=p2.onGround=true;}
+ if(save.level===6){
+   p1.x=185;p1.y=465-p1.h;p1.vx=0;p1.vy=0;p1.onGround=true;
+   p2.x=805;p2.y=465-p2.h;p2.vx=0;p2.vy=0;p2.onGround=true;
+ }
+ if(currentLevel().lava){p1.y=baseGround-18-p1.h;p2.y=baseGround-18-p2.h;p1.onGround=p2.onGround=true;if(save.level===5){p1.x=95;p2.x=930;}if(save.level===9||save.level===10){p1.x=150;p2.x=865;}}
+ safeArenaSpawns();
  message((currentLevel().boss?"👑 BOSS: ":"")+currentLevel().name,1600)
 }
 function startTwoPlayer(){hidePanels();mode="2p";finished=false;buildArena();p1=fighter(170,1);p2=fighter(860,-1,false,true);p2.skin="blue";
- if(currentLevel().lava){p1.y=baseGround-18-p1.h;p2.y=baseGround-18-p2.h;p1.onGround=p2.onGround=true;}message("LOCAL 2 PLAYER",1000)}
+ if(save.level===6){
+   p1.x=185;p1.y=465-p1.h;p1.vx=0;p1.vy=0;p1.onGround=true;
+   p2.x=805;p2.y=465-p2.h;p2.vx=0;p2.vy=0;p2.onGround=true;
+ }
+ if(currentLevel().lava){p1.y=baseGround-18-p1.h;p2.y=baseGround-18-p2.h;p1.onGround=p2.onGround=true;if(save.level===5){p1.x=95;p2.x=980;}if(save.level===9||save.level===10){p1.x=150;p2.x=865;}}
+ safeArenaSpawns();message("LOCAL 2 PLAYER",1000)}
 function hidePanels(){["menu","shop","gameover","levelselect"].forEach(id=>document.getElementById(id).classList.add("hidden"))}
 function backMenu(){mode="menu";finished=false;hidePanels();document.getElementById("menu").classList.remove("hidden")}
 
@@ -140,11 +374,15 @@ function openLevelSelect(){
  document.getElementById("menu").classList.add("hidden");
  document.getElementById("levelselect").classList.remove("hidden");
  let box=document.getElementById("levelButtons"); box.innerHTML="";
- for(let i=1;i<=10;i++){
+ for(let i=1;i<=20;i++){
    let b=document.createElement("button");
-   b.textContent=(i===10?"👑 LEVEL 10":`LEVEL ${i}`);
-   b.style.pointerEvents="auto";
-   b.onclick=function(){ selectLevel(i); };
+   let label=(i===10?"👑 W1 · LEVEL 10":i===20?"👑 W2 · LEVEL 10":i<=10?`W1 · LEVEL ${i}`:`W2 · LEVEL ${i-10}`);
+   let unlocked=i<=save.unlockedLevel;
+   b.textContent=unlocked?label:"🔒 "+label;
+   b.disabled=!unlocked;
+   b.style.opacity=unlocked?"1":".45";
+   b.style.cursor=unlocked?"pointer":"not-allowed";
+   if(unlocked)b.onclick=function(){selectLevel(i)};
    box.appendChild(b);
  }
 }
@@ -153,6 +391,7 @@ function closeLevelSelect(){
  document.getElementById("menu").classList.remove("hidden");
 }
 function selectLevel(n){
+ if(n<1||n>save.unlockedLevel){message("🔒 Beat earlier levels to unlock this one!",1000);return}
  save.level=n; persist();
  document.getElementById("levelselect").classList.add("hidden");
  startAI();
@@ -161,18 +400,138 @@ function openShop(){document.getElementById("menu").classList.add("hidden");docu
 function closeShop(){document.getElementById("shop").classList.add("hidden");document.getElementById("menu").classList.remove("hidden")}
 function buyDamage(){let cost=50+save.damage*50;if(save.coins>=cost){save.coins-=cost;save.damage++;persist()}else message("Need more coins!",900)}
 function buyHealth(){let cost=60+save.health*60;if(save.coins>=cost){save.coins-=cost;save.health++;persist()}else message("Need more coins!",900)}
+function buyExtra(name,cost){
+ if(save.extras.includes(name)){message("Already owned!",700);return}
+ if(save.coins<cost){message("Not enough coins!",700);return}
+ save.coins-=cost;save.extras.push(name);persist();message("✨ UPGRADE UNLOCKED!",900)
+}
+function buyGrenadier(){
+ if(save.grenadier){save.skin="grenadier";persist();message("💣 GRENADIER EQUIPPED!",800);return}
+ if(save.coins<3000){message("Need 3,000 coins!",800);return}
+ save.coins-=3000;save.grenadier=true;save.skin="grenadier";persist();message("💣 GRENADIER UNLOCKED!",1000)
+}
 function buySkin(s,cost){if(save.skins.includes(s)){save.skin=s;persist();return}if(save.coins>=cost){save.coins-=cost;save.skins.push(s);save.skin=s;persist()}else message("Need more coins!",900)}
 function message(t,ms){let m=document.getElementById("message");m.textContent=t;setTimeout(()=>{if(m.textContent===t)m.textContent=""},ms)}
 function nextBattle(){document.getElementById("gameover").classList.add("hidden");if(mode==="doneAI")startAI();else startTwoPlayer()}
 function control(f,e){
  if(f.ai){aiControl(f,e);return}
  let L=f.p2controls?"arrowleft":"a",R=f.p2controls?"arrowright":"d",J=f.p2controls?"arrowup":"w",A=f.p2controls?"k":"f",D=f.p2controls?"l":"g";
- if(keys[L]){f.vx-=.8;f.facing=-1}if(keys[R]){f.vx+=.8;f.facing=1}
- if(keys[J]&&f.onGround){f.vy=-13;f.onGround=false}
+ if(keys[L]){f.vx-=.8*f.speedBonus;f.facing=-1}if(keys[R]){f.vx+=.8*f.speedBonus;f.facing=1}
+ if(keys[J])f.jumpBuffer=7;
+ if(f.jumpBuffer>0&&(f.onGround||f.coyote>0)){f.vy=-13;f.onGround=false;f.coyote=0;f.jumpBuffer=0}
  if(keys[A]&&f.cool<=0){f.attack=12;f.cool=28}
- if(keys[D]&&f.dash<=0){f.vx+=f.facing*12;f.dash=75}
+ if(keys[D]&&f.dash<=0){f.vx+=f.facing*(save.extras.includes("superDash")?16:12);f.dash=75}
+ if(!f.ai&&!f.p2controls&&save.grenadier&&f.grenadesLeft>0&&keys["h"]&&!f.grenadeHeld&&f.grenadeCool<=0){
+   grenades.push({x:f.x+f.w/2,y:f.y+28,vx:f.facing*7,vy:-7,t:85,owner:f});
+   f.grenadesLeft--;f.grenadeCool=65;f.grenadeHeld=true;
+ }
+ if(!keys["h"])f.grenadeHeld=false;
 }
+
+function safeArenaSpawns(){
+ if(!(save.level===9||save.level===10||save.level===15||save.level===17||save.level===19||save.level===20))return;
+ // Redesigned arenas do NOT use instant-death lava.
+ hazards=hazards.filter(h=>h.type!=="lava");
+
+ // Pick REAL safe platforms instead of assuming every redesigned level has
+ // one giant floor. The new unique levels use islands, towers and bridges.
+ let safe=platforms.filter(p=>p.w>=150&&p.y>=400);
+ if(!safe.length)return;
+ safe.sort((a,b)=>a.x-b.x);
+
+ let left=safe[0],right=safe[safe.length-1];
+
+ if(p1){
+   p1.x=left.x+35;
+   p1.y=left.y-p1.h-3;
+   p1.vx=0;p1.vy=0;p1.onGround=true;
+ }
+ if(p2){
+   p2.x=right.x+right.w-p2.w-35;
+   p2.y=right.y-p2.h-3;
+   p2.vx=0;p2.vy=0;p2.onGround=true;
+ }
+}
+
 function aiControl(f,e){
+ if((save.level===9||save.level===10)&&f.ai){
+   let dx=(e.x+e.w/2)-(f.x+f.w/2),dy=e.y-f.y,dir=Math.sign(dx)||1;
+
+   // Stay on the huge safe floor and run toward the player.
+   if(Math.abs(dx)>38)f.vx=Math.max(-1.85,Math.min(1.85,f.vx+dir*.18));
+   else f.vx*=.4;
+
+   // Hard arena-edge guard: the AI cannot run off either end.
+   if(f.x<75&&f.vx<0)f.vx=0;
+   if(f.x+f.w>1025&&f.vx>0)f.vx=0;
+
+   // Jump only if the player is actually on a raised platform nearby.
+   if(f.onGround&&dy<-75&&Math.abs(dx)<165){
+     f.vy=-11.3;f.onGround=false;
+   }
+
+   if(Math.abs(dx)<120&&Math.abs(dy)<100&&f.cool<=0&&Math.random()<.08){
+     f.attack=12;f.cool=24;
+   }
+   return;
+ }
+
+ let world1Calm=save.level<=10;
+
+ // WORLD 1 ANTI-CAMPING: if AI barely moves for too long while away from player,
+ // force a controlled jump/chase. This applies across levels, including Level 7.
+ if(world1Calm && save.level!==9 && save.level!==10){
+   f.campX = (f.campX===undefined ? f.x : f.campX);
+   f.campTicks = f.campTicks||0;
+   if(Math.abs(f.x-f.campX)<10 && Math.abs((e.x+e.w/2)-(f.x+f.w/2))>125) f.campTicks++;
+   else { f.campTicks=0; f.campX=f.x; }
+   if(f.campTicks>42 && f.onGround){
+      let dir=Math.sign((e.x+e.w/2)-(f.x+f.w/2))||1;
+      f.vy=-12.4;
+      f.vx=dir*3.15;
+      f.onGround=false;
+      f.campTicks=0;
+      f.campX=f.x;
+   }
+ }
+
+ // WORLD 2 ANTI-CAMPING TOO
+ if(save.level>=11){
+   f.w2CampX=(f.w2CampX===undefined?f.x:f.w2CampX);
+   f.w2CampTicks=f.w2CampTicks||0;
+   let w2dist=Math.abs((e.x+e.w/2)-(f.x+f.w/2));
+   if(Math.abs(f.x-f.w2CampX)<10 && w2dist>125) f.w2CampTicks++;
+   else {f.w2CampTicks=0;f.w2CampX=f.x;}
+   if(f.w2CampTicks>40 && f.onGround){
+     let dir=Math.sign((e.x+e.w/2)-(f.x+f.w/2))||1;
+     f.vy=-12.8;
+     f.vx=dir*3.35;
+     f.onGround=false;
+     f.w2CampTicks=0;
+     f.w2CampX=f.x;
+   }
+ }
+
+ if(save.level===4){
+   let cx=f.x+f.w/2, ex=e.x+e.w/2, dx=ex-cx, dy=e.y-f.y;
+   // Always pursue horizontally at a controlled speed.
+   f.vx+=Math.sign(dx)*.23;
+   f.vx=Math.max(-2.3,Math.min(2.3,f.vx));
+
+   // Never sit on a platform waiting: jump toward the player when separated.
+   if(f.onGround && (Math.abs(dx)>135 || Math.abs(dy)>45)){
+     f.vy=-12.6;
+     f.vx=Math.sign(dx)*3.25;
+     f.onGround=false;
+   }
+
+   if(Math.abs(dx)<105&&Math.abs(dy)<90&&f.cool<=0&&Math.random()<.034){
+     f.attack=12;f.cool=32;
+   }
+   return;
+ }
+
+ if(world1Calm){f.vx=Math.max(-2.45,Math.min(2.45,f.vx));}
  let dist=e.x-f.x, dir=Math.sign(dist)||f.facing, L=currentLevel();
  f.facing=dir; let boost=L.boss?1.25:1;
  let cx=f.x+f.w/2, feet=f.y+f.h;
@@ -180,6 +539,245 @@ function aiControl(f,e){
  let here=platforms.find(p=>cx>=p.x && cx<=p.x+p.w && Math.abs(feet-p.y)<38);
  let ecx=e.x+e.w/2;
  let playerPlatform=platforms.find(p=>ecx>=p.x && ecx<=p.x+p.w && Math.abs((e.y+e.h)-p.y)<60);
+
+ // LEVEL 5: ACTIVE platform chase AI.
+ // The AI constantly advances across the plates toward the player.
+ if(save.level===5 && here){
+   let ordered=platforms.slice().sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+   let hi=ordered.indexOf(here);
+   let pi=playerPlatform ? ordered.indexOf(playerPlatform) : (e.x>f.x?ordered.length-1:0);
+
+   // If both forks are on the same plate, chase and fight.
+   if(playerPlatform===here){
+     if(f.landPause>0){f.vx*=.72;return;}
+     let leftSafe=here.x+38, rightSafe=here.x+here.w-38;
+     let desired=Math.max(leftSafe,Math.min(rightSafe,e.x+e.w/2));
+     let moveDir=Math.sign(desired-cx);
+     if(Math.abs(desired-cx)>12)f.vx+=moveDir*.44; else f.vx*=.6;
+     if(cx<leftSafe+16&&f.vx<0)f.vx=0;
+     if(cx>rightSafe-16&&f.vx>0)f.vx=0;
+     let close=Math.abs(dist)<105;
+     let sameHeight=Math.abs((e.y+e.h/2)-(f.y+f.h/2))<95;
+     if(close&&sameHeight&&f.cool<=0&&(Math.random()<(world1Calm?.032:.055))){f.attack=12;f.cool=30}
+     return;
+   }
+
+   // Always choose the next plate toward the player.
+   let step=Math.sign(pi-hi);
+   if(step===0)step=dir>=0?1:-1;
+   let target=ordered[hi+step];
+
+   // At an outside edge, turn back toward the arena instead of camping.
+   if(!target){
+     step=hi===0?1:-1;
+     target=ordered[hi+step];
+   }
+
+   if(target && f.onGround){
+     let launchX=step>0 ? here.x+here.w-42 : here.x+42;
+     let targetCenter=target.x+target.w/2;
+     let dx=targetCenter-cx;
+     let edgeGap=step>0 ? target.x-(here.x+here.w) : here.x-(target.x+target.w);
+
+     // If a moving plate is currently too far away, WAIT for it to come back
+     // instead of making a doomed jump.
+     if(edgeGap>105){
+       let safeX=here.x+here.w/2;
+       f.vx+=Math.sign(safeX-cx)*.22;
+       return;
+     }
+
+     // Move to a safe launch point.
+     if(Math.abs(cx-launchX)>8){
+       f.vx+=Math.sign(launchX-cx)*.58;
+       return;
+     }
+
+     // Reliable jump aimed at the middle of the destination plate.
+     f.vy=-13.35;
+     f.vx=Math.sign(dx)*Math.min(5.25,Math.max(4.55,Math.abs(dx)/33));
+     f.onGround=false;
+     return;
+   }
+
+   // Never intentionally stand still.
+   f.vx+=dir*.28;
+   return;
+ }
+
+ // LEVEL 7: SAFE chase AI — moves platform-to-platform and never blindly follows into lava.
+ if(save.level===7 && here){
+   let ordered=platforms.slice().sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+   let hi=ordered.indexOf(here);
+   let pi=playerPlatform?ordered.indexOf(playerPlatform):hi;
+   if(playerPlatform===here){
+     let safeL=here.x+42,safeR=here.x+here.w-42;
+     let desired=Math.max(safeL,Math.min(safeR,e.x+e.w/2));
+     if(Math.abs(desired-cx)>14)f.vx+=Math.sign(desired-cx)*.48; else f.vx*=.6;
+     if(cx<safeL+15&&f.vx<0)f.vx=0;
+     if(cx>safeR-15&&f.vx>0)f.vx=0;
+     if(Math.abs(dist)<105&&Math.abs(e.y-f.y)<90&&f.cool<=0&&(Math.random()<(world1Calm?.035:.06))){f.attack=12;f.cool=28}
+     return;
+   }
+   let step=Math.sign(pi-hi);
+   if(step===0){f.vx*=.7;return}
+   let target=ordered[hi+step];
+   if(!target){f.vx*=.6;return}
+   let gap=step>0?target.x-(here.x+here.w):here.x-(target.x+target.w);
+   let launch=step>0?here.x+here.w-46:here.x+46;
+   if(gap>155){f.vx+=Math.sign(here.x+here.w/2-cx)*.2;return}
+   if(Math.abs(cx-launch)>9){f.vx+=Math.sign(launch-cx)*.58;return}
+   let tx=target.x+target.w/2,dx=tx-cx;
+   f.vy=-13.35;f.vx=Math.sign(dx)*Math.min(5.25,Math.max(4.55,Math.abs(dx)/34));f.onGround=false;
+   return;
+ }
+ // LEVEL 8: MEDIUM ice-platform chase AI.
+ if(save.level===8 && here){
+   let ordered=platforms.slice().sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+   let hi=ordered.indexOf(here);
+   let pi=playerPlatform?ordered.indexOf(playerPlatform):hi;
+
+   if(playerPlatform===here){
+     let safeL=here.x+46,safeR=here.x+here.w-46;
+     let desired=Math.max(safeL,Math.min(safeR,e.x+e.w/2));
+     if(Math.abs(desired-cx)>18)f.vx+=Math.sign(desired-cx)*.28;
+     else f.vx*=.68;
+     if(cx<safeL+18&&f.vx<0)f.vx=0;
+     if(cx>safeR-18&&f.vx>0)f.vx=0;
+     if(Math.abs(dist)<105&&Math.abs(e.y-f.y)<90&&f.cool<=0&&Math.random()<.045){f.attack=12;f.cool=32}
+     return;
+   }
+
+   let step=Math.sign(pi-hi);
+   if(step===0)step=Math.sign((e.x+e.w/2)-cx);
+   if(step===0){f.vx*=.72;return}
+   let target=ordered[hi+step];
+   if(!target){f.vx*=.7;return}
+
+   let gap=step>0?target.x-(here.x+here.w):here.x-(target.x+target.w);
+   let launch=step>0?here.x+here.w-52:here.x+52;
+   if(Math.abs(cx-launch)>10){f.vx+=Math.sign(launch-cx)*.25;return}
+
+   if(gap<=170){
+     let tx=target.x+target.w/2,dx=tx-cx;
+     f.vy=-13.0;
+     f.vx=Math.sign(dx)*Math.min(4.75,Math.max(4.15,Math.abs(dx)/37));
+     f.onGround=false;
+   }else{
+     f.vx+=Math.sign(here.x+here.w/2-cx)*.16;
+   }
+   return;
+ }
+
+ // LEVEL 9: CHAOS KITCHEN — active but controlled chase AI.
+ // Keep advancing across platforms; don't camp and don't blindly run into lava.
+ if(save.level===9 && here){
+   let ordered=platforms.slice().sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+   let hi=ordered.indexOf(here);
+   let pi=playerPlatform ? ordered.indexOf(playerPlatform) : -1;
+
+   // Same platform: chase at medium speed, but keep a safety margin at the edges.
+   if(playerPlatform===here){
+     let safeL=here.x+45, safeR=here.x+here.w-45;
+     let desired=Math.max(safeL,Math.min(safeR,e.x+e.w/2));
+     if(Math.abs(desired-cx)>16) f.vx+=Math.sign(desired-cx)*.30;
+     else f.vx*=.64;
+     if(cx<safeL+16 && f.vx<0) f.vx=0;
+     if(cx>safeR-16 && f.vx>0) f.vx=0;
+     if(Math.abs(dist)<108 && Math.abs(e.y-f.y)<95 && f.cool<=0 && Math.random()<.05){
+       f.attack=12; f.cool=30;
+     }
+     return;
+   }
+
+   // Pick a direction toward the player's platform. If the player is airborne,
+   // use their horizontal position so the AI still makes progress.
+   let step;
+   if(pi>=0) step=Math.sign(pi-hi);
+   else step=Math.sign((e.x+e.w/2)-cx);
+   if(step===0) step=(hi<ordered.length/2?1:-1);
+
+   let target=ordered[hi+step];
+   if(!target){
+     step=-step;
+     target=ordered[hi+step];
+   }
+   if(!target){ f.vx*=.65; return; }
+
+   let gap=step>0 ? target.x-(here.x+here.w) : here.x-(target.x+target.w);
+   let vertical=Math.abs(target.y-here.y);
+   let launch=step>0 ? here.x+here.w-50 : here.x+50;
+
+   // Move toward the jump point at medium speed.
+   if(Math.abs(cx-launch)>9){
+     f.vx+=Math.sign(launch-cx)*.26;
+     return;
+   }
+
+   // Jump only to the next reachable platform and aim at its center.
+   if(gap<=180 && vertical<=125 && f.onGround){
+     let tx=target.x+target.w/2;
+     let dx=tx-cx;
+     f.vy=-13.25;
+     f.vx=Math.sign(dx)*Math.min(5.0,Math.max(4.35,Math.abs(dx)/35));
+     f.onGround=false;
+     return;
+   }
+
+   // If the jump isn't safe yet, stay alive but keep repositioning instead of camping.
+   let center=here.x+here.w/2;
+   if(Math.abs(cx-center)>15) f.vx+=Math.sign(center-cx)*.20;
+   else f.vx+=step*.10;
+   return;
+ }
+
+ // LEVEL 10: KING FORK — aggressive boss, but platform-smart.
+ if(save.level===10 && here){
+   let ordered=platforms.slice().sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+   let hi=ordered.indexOf(here);
+   let pi=playerPlatform?ordered.indexOf(playerPlatform):-1;
+
+   if(playerPlatform===here){
+     let safeL=here.x+44,safeR=here.x+here.w-44;
+     let desired=Math.max(safeL,Math.min(safeR,e.x+e.w/2));
+     if(Math.abs(desired-cx)>15)f.vx+=Math.sign(desired-cx)*.26;
+     else f.vx*=.62;
+     if(cx<safeL+15&&f.vx<0)f.vx=0;
+     if(cx>safeR-15&&f.vx>0)f.vx=0;
+     if(Math.abs(dist)<112&&Math.abs(e.y-f.y)<100&&f.cool<=0&&(Math.random()<(world1Calm?.04:.07))){
+       f.attack=12;f.cool=25;
+     }
+     return;
+   }
+
+   let step=pi>=0?Math.sign(pi-hi):Math.sign((e.x+e.w/2)-cx);
+   if(step===0)step=(hi<ordered.length/2?1:-1);
+   let target=ordered[hi+step];
+   if(!target){step=-step;target=ordered[hi+step]}
+   if(!target){f.vx*=.65;return}
+
+   let gap=step>0?target.x-(here.x+here.w):here.x-(target.x+target.w);
+   let vertical=Math.abs(target.y-here.y);
+   let launch=step>0?here.x+here.w-48:here.x+48;
+
+   if(Math.abs(cx-launch)>9){
+     f.vx+=Math.sign(launch-cx)*.50;
+     return;
+   }
+   if(gap<=185&&vertical<=130&&f.onGround){
+     let tx=target.x+target.w/2,dx=tx-cx;
+     f.vy=-13.35;
+     f.vx=Math.sign(dx)*Math.min(5.15,Math.max(4.45,Math.abs(dx)/34));
+     f.onGround=false;
+     f.kingJump=true;
+     return;
+   }
+
+   let center=here.x+here.w/2;
+   if(Math.abs(cx-center)>15)f.vx+=Math.sign(center-cx)*.22;
+   else f.vx+=step*.12;
+   return;
+ }
 
  if(L.lava && here){
    let sameHeight=Math.abs((e.y+e.h/2)-(f.y+f.h/2))<75;
@@ -204,7 +802,7 @@ function aiControl(f,e){
       let gapLeft=here.x-(p.x+p.w);
       let gap=Math.max(0,gapRight,gapLeft);
       let vertical=Math.abs(p.y-here.y);
-      return gap<=115 && vertical<=70;
+      return gap<=(save.level===5?145:save.level===7?175:115) && vertical<=(save.level===5?115:save.level===7?120:70);
    });
 
    candidates.sort((a,b)=>{
@@ -218,7 +816,8 @@ function aiControl(f,e){
       let jumpDir=Math.sign(tx-cx)||dir;
 
       // Walk to a controlled launch point first.
-      let launchX=jumpDir>0 ? here.x+here.w-90 : here.x+90;
+      let edgePad=save.level===7?58:90;
+       let launchX=jumpDir>0 ? here.x+here.w-edgePad : here.x+edgePad;
       if(Math.abs(cx-launchX)>12){
          f.vx+=Math.sign(launchX-cx)*.30;
          return;
@@ -243,47 +842,129 @@ function aiControl(f,e){
  if(Math.abs(dist)>95)f.vx+=dir*.52*boost;
  let sameHeight=Math.abs((e.y+e.h/2)-(f.y+f.h/2))<85;
  if(Math.abs(dist)<120&&sameHeight&&f.cool<=0&&Math.random()<.10*boost){f.attack=12;f.cool=L.boss?20:30}
- if(Math.abs(dist)>220&&f.dash<=0&&Math.random()<.02*boost){f.vx+=f.facing*11;f.dash=75}
+ if(Math.abs(dist)>220&&f.dash<=0&&Math.random()<.02*boost){f.vx+=f.facing*(save.extras.includes("superDash")?15:11);f.dash=75}
  if(f.onGround&&Math.random()<.012*boost){f.vy=-12;f.onGround=false}
 }
 function overlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
 function platformLand(f,oldBottom){
  for(let p of platforms){
   if(f.vy>=0 && oldBottom<=p.y+8 && f.y+f.h>=p.y && f.x+f.w>p.x && f.x<p.x+p.w){
-   f.y=p.y-f.h;f.vy=0;f.onGround=true;
+   f.y=p.y-f.h;f.vy=0;f.onGround=true;if(f.ai&&save.level===10)f.kingJump=false;if(f.ai&&save.level===5&&f.wasAirborne)f.landPause=24;f.wasAirborne=false;
    if(p.ice)f.vx*=1.025;
    return true;
   }
  }return false;
 }
 function updateF(f,e){
- control(f,e);f.cool--;f.dash--;f.flash--;if(f.attack>0)f.attack--;
- let oldBottom=f.y+f.h;f.vy+=gravity;f.x+=f.vx;f.y+=f.vy;
+if(f.onGround)f.coyote=7;else if(f.coyote>0)f.coyote--;
+ if(f.jumpBuffer>0)f.jumpBuffer--;
+ control(f,e);f.cool--;if(f.grenadeCool>0)f.grenadeCool--;f.dash--;f.flash--;if(f.attack>0)f.attack--;if(!f.onGround)f.wasAirborne=true;if(f.landPause>0)f.landPause--;
+ let oldBottom=f.y+f.h;
+  if(f.ai&&save.level===5&&f.onGround){
+    let fc=f.x+f.w/2,feet=f.y+f.h;
+    let plate=platforms.find(p=>fc>=p.x&&fc<=p.x+p.w&&Math.abs(feet-p.y)<14);
+    if(plate){
+      let nc=fc+f.vx;
+      if(nc<plate.x+30||nc>plate.x+plate.w-30)f.vx=0;
+    }
+  }
+  if(f.ai&&save.level===10&&f.onGround&&!f.kingJump){
+    let fc=f.x+f.w/2,feet=f.y+f.h;
+    let plate=platforms.find(p=>fc>=p.x&&fc<=p.x+p.w&&Math.abs(feet-p.y)<16);
+    if(plate){
+      let nc=fc+f.vx;
+      let left=plate.x+34,right=plate.x+plate.w-34;
+      if(nc<left){f.vx=0;f.x=left-f.w/2}
+      if(nc>right){f.vx=0;f.x=right-f.w/2}
+    }
+  }
+  f.vy+=gravity;f.x+=f.vx;f.y+=f.vy;
  let icy=currentLevel().ice && platforms.some(p=>p.ice&&Math.abs((f.y+f.h)-p.y)<4&&f.x+f.w>p.x&&f.x<p.x+p.w);
- f.vx*=icy?.965:.84;f.onGround=false;
+ f.vx*=icy?(save.level===8?.93:.965):.84;f.onGround=false;
  let landed=platformLand(f,oldBottom);
+ if(landed){f.coyote=7;if(f.jumpBuffer>0&&!f.ai){f.vy=-13;f.onGround=false;f.coyote=0;f.jumpBuffer=0;}}
  if(!currentLevel().lava && !landed && f.y+f.h>=baseGround){f.y=baseGround-f.h;f.vy=0;f.onGround=true}
- if(currentLevel().lava && f.y+f.h>=baseGround+12){f.hp=0;message("🔥 INTO THE LAVA!",600)}
+if(currentLevel().lava && f.y+f.h>=baseGround+12){f.hp=0;message("🔥 INTO THE LAVA!",600)}
  f.x=Math.max(10,Math.min(c.width-65,f.x));
+ for(let b of boostPads){
+   if(f.x+f.w>b.x&&f.x<b.x+b.w&&f.y+f.h>=b.y-8&&f.y+f.h<=b.y+24){
+     if(b.spring){f.vy=-15.2;f.onGround=false}else f.vx+=(b.dir||1)*2.2;
+   }
+ }
+ if(f.teleCool>0)f.teleCool--;
+ for(let t of teleporters){
+   if((f.teleCool||0)<=0&&overlap(f,t)){f.x=t.toX;f.y=t.toY-f.h;f.vx*=.55;f.teleCool=55;break}
+ }
+ for(let z of lasers){if(((tick+z.phase)%150)<82&&overlap(f,z)){f.hp-=.32;f.flash=3;shake=2}}
  if(f.attack>=6&&f.attack<=10){let reach={x:f.facing>0?f.x+35:f.x-65,y:f.y+18,w:85,h:55};if(overlap(reach,e)&&!f.didHit){hit(e,f.damage,f.facing);f.didHit=true}}else if(f.attack<6)f.didHit=false;
- for(let q of fallers)if(overlap(f,q)&&!q.hit){f.hp-=10;q.hit=true;f.flash=8;shake=7}
+ for(let q of fallers)if(!f.ai&&overlap(f,q)&&!q.hit){f.hp-=10;q.hit=true;f.flash=8;shake=7}
 }
 function hit(f,d,dir){f.hp-=d;f.vx+=dir*8;f.vy=-4;f.flash=8;shake=8;for(let i=0;i<12;i++)particles.push({x:f.x+25,y:f.y+35,vx:(Math.random()-.5)*8,vy:(Math.random()-.5)*8,t:25})}
+function updateGrenades(){
+ for(let i=grenades.length-1;i>=0;i--){
+  let g=grenades[i];g.vy+=.38;g.x+=g.vx;g.y+=g.vy;g.t--;
+  let boom=g.t<=0||g.y>baseGround-8||platforms.some(p=>g.x>p.x&&g.x<p.x+p.w&&g.y>p.y-6&&g.y<p.y+18);
+  if(boom){
+   let target=g.owner===p1?p2:p1;
+   let dx=(target.x+target.w/2)-g.x,dy=(target.y+target.h/2)-g.y;
+   if(Math.hypot(dx,dy)<115){target.hp-=24;target.vx+=Math.sign(dx||1)*8;target.vy=-5;target.flash=9}
+   for(let j=0;j<20;j++)particles.push({x:g.x,y:g.y,vx:(Math.random()-.5)*11,vy:(Math.random()-.5)*11,t:25});
+   shake=10;grenades.splice(i,1);
+  }
+ }
+}
+function drawGrenades(){
+ for(let g of grenades){
+   x.save();
+   x.globalAlpha=.28;x.font="28px Arial";x.fillText("💣",g.x-g.vx*2-14,g.y-g.vy*2+10);
+   x.globalAlpha=.5;x.fillText("💣",g.x-g.vx-14,g.y-g.vy+10);
+   x.globalAlpha=1;x.translate(g.x,g.y);x.rotate((85-g.t)*.28);
+   x.font="42px Arial";x.textAlign="center";x.textBaseline="middle";x.fillText("💣",0,0);
+   x.restore();
+ }
+}
 function endGame(){
- if(finished||p1.hp>0&&p2.hp>0)return;finished=true;let win=p1.hp>0,r=document.getElementById("result"),rw=document.getElementById("reward");
+ if(finished||p1.hp>0&&p2.hp>0)return;
+ finished=true;
+ let win=p1.hp>0,r=document.getElementById("result"),rw=document.getElementById("reward");
  if(mode==="ai"){
   if(win){
-   let beaten=save.level,reward=30+beaten*12+(beaten===10?200:0);save.coins+=reward;
-   r.textContent=beaten===10?"👑 KING FORK DEFEATED!":"🏆 LEVEL CLEARED!";
-   rw.textContent=beaten===10?`+${reward} coins! WORLD 1 COMPLETE!`:`+${reward} coins! Next: Level ${beaten+1}`;
-   if(beaten<10)save.level++;else save.level=10;mode="doneAI";persist()
-  }else{r.textContent="💥 FORKED!";rw.textContent="Try again — learn the map and upgrade your fork.";mode="doneAI"}
- }else{r.textContent=win?"🏆 PLAYER 1 WINS!":"🏆 PLAYER 2 WINS!";rw.textContent="Rematch?"}
- setTimeout(()=>document.getElementById("gameover").classList.remove("hidden"),650)
+   let beaten=save.level;
+   let reward=30+beaten*12+(beaten===10?200:0)+(beaten===20?400:0);
+   if(save.extras.includes("lucky"))reward=Math.round(reward*1.25);
+   save.coins+=reward;
+   if(beaten===10){
+     r.textContent="👑 KING FORK DEFEATED!";
+     rw.textContent=`+${reward} coins! WORLD 2 UNLOCKED!`;
+     save.level=11;
+     save.unlockedLevel=Math.max(save.unlockedLevel,11);
+   }else if(beaten===20){
+     r.textContent="👑 MEGA KING FORK DEFEATED!";
+     rw.textContent=`+${reward} coins! WORLD 2 COMPLETE!`;
+     save.level=20;
+     save.unlockedLevel=20;
+   }else{
+     r.textContent="🏆 LEVEL CLEARED!";
+     rw.textContent=`+${reward} coins! Next: ${beaten<10?"World 1 Level "+(beaten+1):"World 2 Level "+(beaten-9)}`;
+     save.level=Math.min(20,beaten+1);
+     save.unlockedLevel=Math.max(save.unlockedLevel,save.level);
+   }
+   mode="doneAI";persist();
+  }else{
+   r.textContent="💥 FORKED!";
+   rw.textContent="Try again — learn the map and upgrade your fork.";
+   mode="doneAI";
+  }
+ }else{
+   r.textContent=win?"🏆 PLAYER 1 WINS!":"🏆 PLAYER 2 WINS!";
+   rw.textContent="Rematch?";
+ }
+ setTimeout(()=>document.getElementById("gameover").classList.remove("hidden"),650);
 }
+
 function spawnFaller(){
  if(!currentLevel().fall)return;
- if(tick%95===0)fallers.push({x:60+Math.random()*950,y:-40,w:30,h:30,vy:3+Math.random()*2,hit:false})
+ if(tick%(save.level===20?38:(save.level===15?48:(save.level>=11?55:(save.level===10?45:(save.level===6?70:95)))))===0)fallers.push({x:60+Math.random()*950,y:-40,w:30,h:30,vy:(save.level===6?4.2+Math.random()*2.0:3+Math.random()*2),hit:false,kind:Math.floor(Math.random()*3)})
 }
 function drawFork(f){
  x.save();x.translate(f.x+f.w/2,f.y+f.h/2);x.scale(f.facing,1);if(f.flash>0)x.globalAlpha=.45;
@@ -303,12 +984,23 @@ function draw(){
  if(!L.lava){x.fillStyle="#303746";x.fillRect(0,baseGround,c.width,c.height-baseGround);x.fillStyle="#596274";x.fillRect(0,baseGround,c.width,8)}
  else{let grd=x.createLinearGradient(0,baseGround,0,c.height);grd.addColorStop(0,"#ffdd35");grd.addColorStop(.25,"#ff6a18");grd.addColorStop(1,"#a50000");x.fillStyle=grd;x.fillRect(0,baseGround,c.width,c.height-baseGround);x.fillStyle="#fff4";for(let i=0;i<15;i++)x.fillRect((i*83+tick*2)%c.width,baseGround+15+(i%3)*20,35,5)}
  for(let p of platforms){x.fillStyle=p.ice?"#a9ecff":"#68717f";x.fillRect(p.x,p.y,p.w,p.h);x.fillStyle=p.ice?"#e7fbff":"#8b94a2";x.fillRect(p.x,p.y,p.w,5)}
- for(let q of fallers){x.fillStyle="#ffca45";x.beginPath();x.arc(q.x+15,q.y+15,15,0,7);x.fill()}
- if(mode!=="menu"){drawFork(p1);drawFork(p2);bar(p1,true,"PLAYER 1");bar(p2,false,L.boss?"👑 KING FORK":mode==="ai"?"AI FORK":"PLAYER 2");x.fillStyle="#fff";x.textAlign="center";x.font="bold 20px Arial";x.fillText(L.name,c.width/2,42)}
+ for(let q of fallers){
+ x.fillStyle=q.kind===1?"#ef5350":q.kind===2?"#8bc34a":"#ffca45";
+ x.beginPath();x.arc(q.x+15,q.y+15,15,0,7);x.fill();
+}
+ for(let b of boostPads){
+   x.fillStyle=b.spring?"#ff7b32":"#36e8ff";x.fillRect(b.x,b.y,b.w,b.h);
+   x.fillStyle="#fff";x.textAlign="center";x.font="bold 16px Arial";x.fillText(b.spring?"↑":"BOOST",b.x+b.w/2,b.y+12);
+ }
+ for(let t of teleporters){x.strokeStyle="#b56cff";x.lineWidth=6;x.beginPath();x.ellipse(t.x+t.w/2,t.y+t.h/2,t.w/2,t.h/2,0,0,Math.PI*2);x.stroke()}
+ for(let z of lasers){let active=((tick+z.phase)%150)<82;x.fillStyle=active?"#ff315d":"#552536";if(active){x.shadowBlur=18;x.shadowColor="#ff315d"}x.fillRect(z.x,z.y,z.w,z.h);x.shadowBlur=0}
+ if(mode!=="menu"){drawFork(p1);drawFork(p2);bar(p1,true,"PLAYER 1");bar(p2,false,L.boss?"👑 KING FORK":mode==="ai"?"AI FORK":"PLAYER 2");x.fillStyle="#fff";x.textAlign="center";x.font="bold 20px Arial";x.fillText(L.name,c.width/2,42);drawGrenades();}
  particles.forEach(q=>{x.fillStyle="#ffd54a";x.fillRect(q.x,q.y,5,5)});x.restore()
 }
 function loop(t){
- last=t;tick++;if(mode!=="menu"&&!finished&&p1&&p2){spawnFaller();updateF(p1,p2);updateF(p2,p1);endGame()}
+ let gh=document.getElementById("grenadeHud");
+ if(gh)gh.textContent="💣 "+(p1&&save.grenadier?(p1.grenadesLeft||0):0)+"/2";
+ last=t;tick++;if(mode!=="menu"&&!finished&&p1&&p2){movePlatforms();spawnFaller();updateF(p1,p2);updateF(p2,p1);updateGrenades();endGame()}
  fallers.forEach(q=>{q.y+=q.vy});fallers=fallers.filter(q=>q.y<c.height+50);
  particles.forEach(q=>{q.x+=q.vx;q.y+=q.vy;q.vy+=.25;q.t--});particles=particles.filter(q=>q.t>0);
  draw();requestAnimationFrame(loop)
