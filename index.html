@@ -100,9 +100,9 @@
       <div class="card"><strong>🔥 Fire Fork Skin</strong>100 coins<br><button onclick="buySkin('fire',100)">Buy/Equip</button></div>
       <div class="card"><strong>💎 Diamond Fork Skin</strong>250 coins<br><button onclick="buySkin('diamond',250)">Buy/Equip</button></div>
       <div class="card"><strong>💣 Grenadier Fork</strong>3,000 coins<br><span id="grenadeText">Throws grenades with <b>H</b>.</span><br><button onclick="buyGrenadier()">Buy/Equip</button></div>
-      <div class="card"><strong>⚡ Speed Boots</strong>400 coins<br><button onclick="buyExtra('speed',400)">Buy</button></div>
+      <div class="card"><strong>⚡ Speed Boots</strong>400 coins<br>Move 28% faster.<br><button onclick="buyExtra('speed',400)">Buy</button></div>
       <div class="card"><strong>🛡️ Fork Shield</strong>650 coins<br><button onclick="buyExtra('shield',650)">Buy</button></div>
-      <div class="card"><strong>🧲 Coin Magnet</strong>800 coins<br><button onclick="buyExtra('magnet',800)">Buy</button></div>
+      <div class="card"><strong>🧲 Coin Magnet</strong>800 coins<br>Earn 15% more coins from wins.<br><button onclick="buyExtra('magnet',800)">Buy</button></div>
       <div class="card"><strong>❄️ Ice Fork Skin</strong>500 coins<br><button onclick="buySkin('icefork',500)">Buy/Equip</button></div>
       <div class="card"><strong>☢️ Toxic Fork Skin</strong>750 coins<br><button onclick="buySkin('toxic',750)">Buy/Equip</button></div>
       <div class="card"><strong>👑 Golden Fork Skin</strong>1,500 coins<br><button onclick="buySkin('gold',1500)">Buy/Equip</button></div>
@@ -132,7 +132,7 @@ const keys={}; addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(
 addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 
 // GITHUB RELEASE — reset old test progress ONCE, then preserve real progress.
-const RELEASE_RESET_KEY="forkBattleReleaseResetGrenadeV1";
+const RELEASE_RESET_KEY="forkBattlePublicReleaseCustomSkinsV1";
 let save;
 if(localStorage.getItem(RELEASE_RESET_KEY)!=="done"){
   save={coins:0,level:1,unlockedLevel:1,damage:0,health:0,skins:["classic"],skin:"classic",grenadier:false,extras:[]};
@@ -186,7 +186,7 @@ function fighter(px,facing,ai=false,p2controls=false){
  let playerDamage=13+save.damage*3+((!ai&&save.extras.includes("powerFork"))?4:0);
  return {x:px,y:baseGround-95,vx:0,vy:0,w:55,h:95,facing,ai,p2controls,hp,maxHp:hp,
  damage:ai?(13*mult+(boss?3:0)):playerDamage,attack:0,cool:0,dash:0,onGround:true,flash:0,skin:ai?(boss?"king":"enemy"):save.skin,
- speedBonus:(!ai&&save.extras.includes("speed"))?1.18:1,coyote:0,jumpBuffer:0,grenadeCool:0,grenadeHeld:false,grenadesLeft:(!ai&&!p2controls&&save.grenadier)?2:0};
+ speedBonus:(!ai&&save.extras.includes("speed"))?1.28:1,coyote:0,jumpBuffer:0,grenadeCool:0,grenadeHeld:false,grenadesLeft:(!ai&&!p2controls&&save.grenadier)?2:0};
 }
 function buildArena(){
  // Always clear the previous level FIRST. The redesigned arenas return early,
@@ -351,6 +351,7 @@ function movePlatforms(){
 }
 function startAI(){
  if(save.level>20){save.level=20;persist()}
+ for(let k in keys)keys[k]=false;
  hidePanels();mode="ai";finished=false;buildArena();p1=fighter(170,1);p2=fighter(860,-1,true);
  if(save.level===6){
    p1.x=185;p1.y=465-p1.h;p1.vx=0;p1.vy=0;p1.onGround=true;
@@ -360,7 +361,7 @@ function startAI(){
  safeArenaSpawns();
  message((currentLevel().boss?"👑 BOSS: ":"")+currentLevel().name,1600)
 }
-function startTwoPlayer(){hidePanels();mode="2p";finished=false;buildArena();p1=fighter(170,1);p2=fighter(860,-1,false,true);p2.skin="blue";
+function startTwoPlayer(){for(let k in keys)keys[k]=false;hidePanels();mode="2p";finished=false;buildArena();p1=fighter(170,1);p2=fighter(860,-1,false,true);p2.skin="blue";
  if(save.level===6){
    p1.x=185;p1.y=465-p1.h;p1.vx=0;p1.vy=0;p1.onGround=true;
    p2.x=805;p2.y=465-p2.h;p2.vx=0;p2.vy=0;p2.onGround=true;
@@ -858,7 +859,7 @@ function platformLand(f,oldBottom){
 function updateF(f,e){
 if(f.onGround)f.coyote=7;else if(f.coyote>0)f.coyote--;
  if(f.jumpBuffer>0)f.jumpBuffer--;
- control(f,e);f.cool--;if(f.grenadeCool>0)f.grenadeCool--;f.dash--;f.flash--;if(f.attack>0)f.attack--;if(!f.onGround)f.wasAirborne=true;if(f.landPause>0)f.landPause--;
+ control(f,e);f.cool--;if(f.grenadeCool>0)f.grenadeCool--;if((f.springCool||0)>0)f.springCool--;f.dash--;f.flash--;if(f.attack>0)f.attack--;if(!f.onGround)f.wasAirborne=true;if(f.landPause>0)f.landPause--;
  let oldBottom=f.y+f.h;
   if(f.ai&&save.level===5&&f.onGround){
     let fc=f.x+f.w/2,feet=f.y+f.h;
@@ -888,7 +889,9 @@ if(currentLevel().lava && f.y+f.h>=baseGround+12){f.hp=0;message("🔥 INTO THE 
  f.x=Math.max(10,Math.min(c.width-65,f.x));
  for(let b of boostPads){
    if(f.x+f.w>b.x&&f.x<b.x+b.w&&f.y+f.h>=b.y-8&&f.y+f.h<=b.y+24){
-     if(b.spring){f.vy=-15.2;f.onGround=false}else f.vx+=(b.dir||1)*2.2;
+     if(b.spring){
+       if((f.springCool||0)<=0 && f.vy>=0){f.vy=-15.2;f.onGround=false;f.springCool=18}
+     }else f.vx+=(b.dir||1)*2.2;
    }
  }
  if(f.teleCool>0)f.teleCool--;
@@ -931,6 +934,7 @@ function endGame(){
   if(win){
    let beaten=save.level;
    let reward=30+beaten*12+(beaten===10?200:0)+(beaten===20?400:0);
+   if(save.extras.includes("magnet"))reward=Math.round(reward*1.15);
    if(save.extras.includes("lucky"))reward=Math.round(reward*1.25);
    save.coins+=reward;
    if(beaten===10){
@@ -968,10 +972,66 @@ function spawnFaller(){
 }
 function drawFork(f){
  x.save();x.translate(f.x+f.w/2,f.y+f.h/2);x.scale(f.facing,1);if(f.flash>0)x.globalAlpha=.45;
- let col=f.skin==="fire"?"#ff6b32":f.skin==="diamond"?"#71e6ff":f.skin==="blue"?"#76a9ff":f.skin==="king"?"#ffd43b":f.skin==="enemy"?"#ff7070":"#dce2ea";
+ let col=f.skin==="fire"?"#ff6b32":
+ f.skin==="diamond"?"#71e6ff":
+ f.skin==="icefork"?"#b9f3ff":
+ f.skin==="toxic"?"#7dff55":
+ f.skin==="gold"?"#ffd43b":
+ f.skin==="rainbow"?`hsl(${(tick*4)%360} 90% 65%)`:
+ f.skin==="shadow"?"#7d6aa8":
+ f.skin==="grenadier"?"#5f8f55":
+ f.skin==="blue"?"#76a9ff":
+ f.skin==="king"?"#ffd43b":
+ f.skin==="enemy"?"#ff7070":"#dce2ea";
  x.strokeStyle=col;x.fillStyle=col;x.lineWidth=f.skin==="king"?13:9;x.lineCap="round";x.beginPath();x.moveTo(0,35);x.lineTo(0,-12);x.stroke();
  x.lineWidth=5;[-15,-5,5,15].forEach(xx=>{x.beginPath();x.moveTo(xx,-12);x.lineTo(xx,-42);x.stroke()});x.beginPath();x.moveTo(-15,-13);x.lineTo(15,-13);x.stroke();
  x.fillStyle="#111";x.beginPath();x.arc(-7,-2,3,0,7);x.arc(7,-2,3,0,7);x.fill();
+
+ // Every player skin gets its own custom accessory/effect.
+ if(f.skin==="fire"){
+   // Flame necklace
+   x.strokeStyle="#ffcf6b";x.lineWidth=3;x.beginPath();x.arc(0,13,13,0,Math.PI);x.stroke();
+   x.font="18px Arial";x.textAlign="center";x.fillText("🔥",0,27);
+ }
+ if(f.skin==="diamond"){
+   // Diamond crown / gem
+   x.font="19px Arial";x.textAlign="center";x.fillText("💎",0,-49);
+   x.strokeStyle="#e8ffff";x.lineWidth=2;x.beginPath();x.arc(0,-48,15,0,Math.PI*2);x.stroke();
+ }
+ if(f.skin==="icefork"){
+   // Snowflake medallion
+   x.font="19px Arial";x.textAlign="center";x.fillText("❄️",0,25);
+   x.strokeStyle="#dffcff";x.lineWidth=2;x.beginPath();x.moveTo(-18,9);x.lineTo(18,9);x.stroke();
+ }
+ if(f.skin==="toxic"){
+   // Toxic badge with bubbling dots
+   x.font="18px Arial";x.textAlign="center";x.fillText("☣️",0,26);
+   x.fillStyle="#b6ff62";x.beginPath();x.arc(-19,-18,3,0,7);x.arc(20,-27,4,0,7);x.arc(23,8,2.5,0,7);x.fill();
+ }
+ if(f.skin==="gold"){
+   // Gold chain + star pendant
+   x.strokeStyle="#fff1a6";x.lineWidth=3;x.beginPath();x.arc(0,12,14,0,Math.PI);x.stroke();
+   x.font="17px Arial";x.textAlign="center";x.fillText("⭐",0,27);
+ }
+ if(f.skin==="rainbow"){
+   // Animated rainbow halo
+   x.strokeStyle=`hsl(${(tick*6+120)%360} 95% 70%)`;x.lineWidth=5;
+   x.beginPath();x.ellipse(0,-49,24,8,0,0,Math.PI*2);x.stroke();
+   x.font="14px Arial";x.textAlign="center";x.fillText("🌈",0,25);
+ }
+ if(f.skin==="shadow"){
+   // Shadow hood + smoky orbit
+   x.strokeStyle="#c5a9ff";x.lineWidth=4;x.beginPath();x.arc(0,-5,24,Math.PI,0);x.stroke();
+   x.globalAlpha*=.45;x.fillStyle="#b28cff";
+   x.beginPath();x.arc(-24,18+Math.sin(tick*.08)*5,5,0,7);x.arc(25,5+Math.cos(tick*.08)*6,4,0,7);x.fill();
+   x.globalAlpha=f.flash>0?.45:1;
+ }
+ if(f.skin==="grenadier"){
+   // Grenadier helmet + bomb badge
+   x.fillStyle="#405b39";x.beginPath();x.arc(0,-39,21,Math.PI,0);x.fill();
+   x.font="16px Arial";x.textAlign="center";x.fillText("💣",0,25);
+ }
+
  if(f.skin==="king"){x.fillStyle="#ffd43b";x.beginPath();x.moveTo(-24,-48);x.lineTo(-16,-67);x.lineTo(-5,-53);x.lineTo(6,-69);x.lineTo(17,-53);x.lineTo(25,-67);x.lineTo(25,-46);x.closePath();x.fill()}
  if(f.attack>0){x.rotate(-.65);x.strokeStyle="#fff";x.lineWidth=6;x.beginPath();x.moveTo(18,12);x.lineTo(72,-25);x.stroke()}
  x.restore();
@@ -997,12 +1057,24 @@ function draw(){
  if(mode!=="menu"){drawFork(p1);drawFork(p2);bar(p1,true,"PLAYER 1");bar(p2,false,L.boss?"👑 KING FORK":mode==="ai"?"AI FORK":"PLAYER 2");x.fillStyle="#fff";x.textAlign="center";x.font="bold 20px Arial";x.fillText(L.name,c.width/2,42);drawGrenades();}
  particles.forEach(q=>{x.fillStyle="#ffd54a";x.fillRect(q.x,q.y,5,5)});x.restore()
 }
+let gameAccumulator=0,gamePrevTime=0;
+const GAME_STEP=1000/60;
 function loop(t){
  let gh=document.getElementById("grenadeHud");
  if(gh)gh.textContent="💣 "+(p1&&save.grenadier?(p1.grenadesLeft||0):0)+"/2";
- last=t;tick++;if(mode!=="menu"&&!finished&&p1&&p2){movePlatforms();spawnFaller();updateF(p1,p2);updateF(p2,p1);updateGrenades();endGame()}
- fallers.forEach(q=>{q.y+=q.vy});fallers=fallers.filter(q=>q.y<c.height+50);
- particles.forEach(q=>{q.x+=q.vx;q.y+=q.vy;q.vy+=.25;q.t--});particles=particles.filter(q=>q.t>0);
+
+ if(!gamePrevTime)gamePrevTime=t;
+ gameAccumulator+=Math.min(50,t-gamePrevTime);
+ gamePrevTime=t;
+
+ // Run game logic at a steady 60 updates/second on every monitor.
+ while(gameAccumulator>=GAME_STEP){
+   last=t;tick++;
+   if(mode!=="menu"&&!finished&&p1&&p2){movePlatforms();spawnFaller();updateF(p1,p2);updateF(p2,p1);updateGrenades();endGame()}
+   fallers.forEach(q=>{q.y+=q.vy});fallers=fallers.filter(q=>q.y<c.height+50);
+   particles.forEach(q=>{q.x+=q.vx;q.y+=q.vy;q.vy+=.25;q.t--});particles=particles.filter(q=>q.t>0);
+   gameAccumulator-=GAME_STEP;
+ }
  draw();requestAnimationFrame(loop)
 }
 updateUI();requestAnimationFrame(loop);
